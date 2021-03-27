@@ -128,9 +128,10 @@ impl MmapRegion {
         )
     }
 
+    /// Create a mmap from raw fd
     pub fn build_from_raw_fd(
-        fd: u32,
-        file_offset: u32,
+        fd: i32,
+        file_offset: i64,
         size: usize,
         prot: i32,
         flags: i32,
@@ -143,7 +144,7 @@ impl MmapRegion {
 
         // This is safe because we're not allowing MAP_FIXED, and invalid parameters cannot break
         // Rust safety guarantees (things may change if we're mapping /dev/mem or some wacky file).
-        let addr = unsafe { libc::mmap(null_mut(), size, prot, flags, fd, offset as libc::off_t) };
+        let addr = unsafe { libc::mmap(null_mut(), size, prot, flags, fd, file_offset as libc::off_t) };
 
         if addr == libc::MAP_FAILED {
             return Err(Error::Mmap(io::Error::last_os_error()));
@@ -152,11 +153,10 @@ impl MmapRegion {
         Ok(Self {
             addr: addr as *mut u8,
             size,
-            file_offset,
+            file_offset: None,
             prot,
             flags,
             owned: true,
-            hugetlbfs: None,
         })
 
     }
