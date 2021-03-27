@@ -128,6 +128,39 @@ impl MmapRegion {
         )
     }
 
+    pub fn build_from_raw_fd(
+        fd: u32,
+        file_offset: u32,
+        size: usize,
+        prot: i32,
+        flags: i32,
+    ) -> Result<Self> {
+        // Forbid MAP_FIXED, as it doesn't make sense in this context, and is pretty dangerous
+        // in general.
+        if flags & libc::MAP_FIXED != 0 {
+            return Err(Error::MapFixed);
+        }
+
+        // This is safe because we're not allowing MAP_FIXED, and invalid parameters cannot break
+        // Rust safety guarantees (things may change if we're mapping /dev/mem or some wacky file).
+        let addr = unsafe { libc::mmap(null_mut(), size, prot, flags, fd, offset as libc::off_t) };
+
+        if addr == libc::MAP_FAILED {
+            return Err(Error::Mmap(io::Error::last_os_error()));
+        }
+
+        Ok(Self {
+            addr: addr as *mut u8,
+            size,
+            file_offset,
+            prot,
+            flags,
+            owned: true,
+            hugetlbfs: None,
+        })
+
+    }
+
     /// Creates a mapping based on the provided arguments.
     ///
     /// # Arguments
